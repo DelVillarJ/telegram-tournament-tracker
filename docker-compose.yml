@@ -1,0 +1,18 @@
+# Docker Compose for Telegram Bot
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: telegrambot
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - TOPDECK_API_URL=${TOPDECK_API_URL}
+      - TOPDECK_CLIENT_ID=${TOPDECK_CLIENT_ID}
+      - TOPDECK_CLIENT_SECRET=${TOPDECK_CLIENT_SECRET}
+      - TARGET_USER_ID=${TARGET_USER_ID:-user_id_1}
+      - DATABASE_PATH=/app/data/tournaments.db
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped

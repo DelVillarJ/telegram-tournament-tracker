@@ -1,0 +1,101 @@
+name: Python Tests and Linting
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest-cov
+    
+    - name: Run tests with coverage
+      run: |
+        pytest --cov=src --cov-report=html --cov-report=term-missing
+        if [ $(pytest --cov=src -q) ]; then
+          echo "✅ All tests passed!"
+        else
+          echo "❌ Tests failed"
+          exit 1
+        fi
+    
+    - name: Upload coverage to Codecov (optional)
+      uses: codecov/codecov-action@v3
+      if: always()
+
+  lint:
+    name: Linting and Formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install linting tools
+      run: |
+        pip install black flake8 mypy isort
+    
+    - name: Check formatting (black)
+      run: |
+        black --check src/
+        if [ $? -eq 0 ]; then
+          echo "✅ Code formatting looks good!"
+        else
+          echo "❌ Formatting issues found"
+          exit 1
+        fi
+    
+    - name: Check imports (isort)
+      run: |
+        isort --check-only src/
+    
+    - name: Type checking (mypy)
+      run: |
+        mypy src/
+    
+    - name: Style checking (flake8)
+      run: |
+        flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install security tools
+      run: pip install bandit safety
+    
+    - name: Run Bandit security check
+      run: |
+        bandit -r src/
+    
+    - name: Check for vulnerable packages (safety)
+      run: |
+        safety check --full-report || exit 1

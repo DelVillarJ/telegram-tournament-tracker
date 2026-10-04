@@ -1,0 +1,46 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+  
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Run tests before deploy
+      run: pytest --tb=short
+      
+    - name: Create deployment archive
+      run: |
+        tar -czf deployment.tar.gz src/ config/ README.md LICENSE
+        
+    - name: Deploy (placeholder)
+      run: |
+        echo "Deployment to ${{ github.event.inputs.environment }}"
+        echo "This would use your deployment tool (e.g., docker-compose, ansible, etc.)"
+        echo "Commands:"
+        echo "  - Pull latest image: docker pull ..."
+        echo "  - Run migrations: python migrations/init.py"
+        echo "  - Start services: docker-compose up -d"
