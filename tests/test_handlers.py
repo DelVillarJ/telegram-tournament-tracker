@@ -1,16 +1,16 @@
 """Unit tests for handlers."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 from aiogram import types
-from src.handlers import (
-    start_command,
-    status_command,
-    points_command,
-    help_command,
-    tournament_callback
-)
+from aiogram.types import Message, CallbackQuery
+from aiogram.filters import Command
+from aiogram.types import F
+from aiogram import Router
+
+from src.handlers import router as handlers_router
+from src.services.topdeck import TopDeckService
 
 
 @pytest.fixture
