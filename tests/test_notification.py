@@ -1,9 +1,10 @@
 """Unit tests for notification service."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from datetime import datetime
 
+from aiogram import types
 from src.services.notification import NotificationService
 
 
@@ -16,21 +17,23 @@ def mock_bot():
 @pytest.fixture
 def notification_service(mock_bot):
     """Create a notification service with mocked bot."""
-    return NotificationService(
-        bot_token="test_token",
-        bot_properties=MagicMock()
-    )
+    with patch('src.services.notification.Bot') as mock_bot_class:
+        mock_bot_class.return_value = mock_bot
+        return NotificationService(
+            bot_token="test_token",
+            bot_properties=MagicMock()
+        )
 
 
 @pytest.mark.asyncio
 async def test_send_to_groups_success(notification_service, mock_bot):
     """Test sending message to multiple groups."""
     # Setup
-    mock_bot.send_message = MagicMock(side_effect=[
+    mock_bot.send_message = AsyncMock(side_effect=[
         # First call for group1
-        types.Message(message_id=1, chat=MagicMock(id=1)),
+        MagicMock(spec=types.Message, message_id=1),
         # Second call for group2
-        types.Message(message_id=2, chat=MagicMock(id=2)),
+        MagicMock(spec=types.Message, message_id=2),
     ])
     
     # Mock bot instance
@@ -48,8 +51,11 @@ async def test_send_to_groups_success(notification_service, mock_bot):
 @pytest.mark.asyncio
 async def test_notify_tournament_complete(notification_service, mock_bot):
     """Test notification for tournament completion."""
-    mock_bot.send_message = MagicMock(return_value=MagicMock())
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
     notification_service.bot = mock_bot
+
+    # Mock default_group_ids to avoid "No group IDs provided" warning/failure
+    notification_service.default_group_ids = ["123456"]
     
     result = await notification_service.notify_tournament_complete(
         tournament_id="t1",
@@ -72,14 +78,17 @@ async def test_standings_update_notification(notification_service, mock_bot):
         {"display_name": "Player5", "points": 110},
     ]
     
-    mock_bot.send_message = MagicMock(return_value=MagicMock())
+    mock_bot.send_message = AsyncMock(return_value=MagicMock())
     notification_service.bot = mock_bot
     
+    # Mock default_group_ids to avoid "No group IDs provided" warning/failure
+    notification_service.default_group_ids = ["123456"]
+
     result = await notification_service.notify_standings_updated(
         tournament_id="t1",
         top_5_players=top_5_players
     )
-    
+
     assert result is True
 
 

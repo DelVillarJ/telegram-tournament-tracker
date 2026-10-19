@@ -1,171 +1,54 @@
-# Architecture Overview
+# Architecture overview
 
-This document describes the architecture of the Telegram Bot for TopDeck Tournament Tracking.
+## Runtime
 
-## System Architecture
+`python -m src.main` creates the database manager and TopDeck service, registers
+`aiogram` message handlers, and starts Telegram long polling. `/status` calls
+the authenticated TopDeck account-tournaments endpoint. `/points` reads the
+stored 2026 league standings from SQLite. `/bonus` appends an authorized,
+auditable adjustment to the same player's cumulative score.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      TELEGRAM BOT                           │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Command      │  │ Callback     │  │ Notification  │      │
-│  │ Handlers     │  │ Handlers     │  │ Service       │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│                     │         │                              │
-│              ┌──────┴───┐    ┌┴──────────────┐             │
-│              │   Router │    │ TopDeck       │             │
-│              └──────────┘    │ Service       │             │
-│                              └───────────────┘             │
-├─────────────────────────────────────────────────────────────┤
-│                      DATABASE                               │
-│              SQLite / PostgreSQL                            │
-├─────────────────────────────────────────────────────────────┤
-│                      EXTERNAL API                           │
-│                  TopDeck API                                │
-└─────────────────────────────────────────────────────────────┘
+```text
+Telegram
+   │ long polling / commands
+   ▼
+aiogram handlers ─────── TopDeckService ─────── TopDeck Tournaments V2 API
+   │                           │
+   │ /bonus                    │ /points
+   ▼                           ▼
+BonusAdjustment            Standings + Tournament
+   └─────────────── SQLite ────────────────┘
 ```
 
-## Component Diagram
+## League score data
 
-```
-                    ┌──────────────┐
-                    │  Telegram    │
-                    │   Bot        │
-                    │  (aiogram)   │
-                    └──────┬───────┘
-                           │
-       ┌──────────────────┼──────────────────┐
-       │                  │                  │
-       ▼                  ▼                  ▼
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Tournament  │    │   Standings │    │ Notifications│
-│ Service     │    │  Manager    │    │   Queue      │
-└─────────────┘    └─────────────┘    └─────────────┘
-       │                  │                  │
-       ▼                  ▼                  ▼
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Models    │    │  Database   │    │ Telegram     │
-│ (Pydantic)  │    │  Repository │    │  Groups      │
-└─────────────┘    └─────────────┘    └─────────────┘
-                           │
-                    ┌──────┴───────┐
-                    │ TopDeck API  │
-                    └──────────────┘
-```
+- `Tournament` stores TopDeck event identity, name, participant count, and
+  start/end dates.
+- `Standings` stores event rank, TopDeck player ID, earned points, wins, and
+  the monthly undefeated bonus.
+- `BonusAdjustment` stores each manual signed point delta with player identity,
+  acting Telegram user, and creation time.
+- `Notification` stores notification history.
 
-## Data Flow
+The leaderboard groups tournament rows by TopDeck player ID and year, sums
+earned points, and adds the player's manual bonus total. It is ordered by the
+resulting score.
 
-### Tournament Tracking Flow
+## Scoring
 
-1. **Bot receives command** (`/status`) or triggers via poll interval
-2. **Command handler** routes to `TournamentService`
-3. **TopDeck Service** queries TopDeck API for active tournaments
-4. **Data is cached** and returned to handlers
-5. **Handlers format response** for Telegram users
+An event with at least eight standings rows uses monthly place points; smaller
+events use weekly place points. Monthly undefeated bonus eligibility is
+computed from completed rounds numbered up to TopDeck's `swissNum`, so
+elimination bracket outcomes are excluded. A draw does not count as a loss. A
+round without a completed result does not qualify its participants as
+undefeated.
 
-### Tournament Completion Flow
+## Configuration and persistence
 
-1. **Polling service** detects tournament completion via TopDeck API
-2. **Completion event** triggers `NotificationService.notify_tournament_complete()`
-3. **Notifications sent** to configured groups/channels
-4. **Event logged** to database with timestamp
+Configuration is read from environment variables and `.env` for local
+development. Docker Compose passes `.env` values into the application and
+mounts `./data` at `/app/data`. The bot uses Telegram long polling, so no local
+HTTP health endpoint or exposed application port is required.
 
-### Standings Update Flow
-
-1. **Scheduled job** runs every N seconds (configurable)
-2. **Fetch latest standings** from TopDeck API
-3. **Compare with cached data** for changes
-4. **Send update notification** if changed
-5. **Update cache** and database
-
-## Database Schema
-
-### Tables Overview
-
-```
-┌───────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ tournaments   │    │  standings      │    │ notifications    │
-├───────────────┤    ├─────────────────┤    ├─────────────────┤
-│ id            │    │ id              │    │ id               │
-│ tournament_id │───▶│ tournament_id   │───▶│ tournament_id   │
-│ name          │    │ player_name     │    │ group_id         │
-│ status        │    │ points          │    │ message          │
-│ participant_c │    │ wins            │    │ sent_at          │
-│ ...           │    │ matches_played  │    │ success          │
-└───────────────┘    │ tournament_id   │    │ error_message    │
-                     └─────────────────┘    └─────────────────┘
-                              ▲                   ▲
-                              │                   │
-                         (has_many)          (has_many)
-```
-
-## Service Layer
-
-### TopDeckService
-
-- `get_active_tournaments()` - Fetch active tournaments
-- `get_tournament_details(tourney_id)` - Get single tournament info
-- `get_standings(tournament_id)` - Get standings data
-- `check_tournament_status(id)` - Check if completed
-- `sync_tournament_data(id)` - Sync local data with API
-
-### NotificationService
-
-- `send_to_groups(message, group_ids)` - Send to multiple groups
-- `notify_tournament_complete()` - Notify when finished
-- `notify_standings_updated()` - Send standings update
-- `notify_new_tournament()` - Announce new tournaments
-
-## Handler Registration
-
-Handlers are registered in `src/handlers/__init__.py`:
-
-```python
-router = Router()
-
-@router.message(Command("start"))
-async def start(message): ...
-
-@router.message(Command("status"))
-async def status(message, topdeck_service): ...
-```
-
-## Extension Points
-
-To add new functionality:
-
-1. **New command**: Add handler in `src/handlers/__init__.py`
-2. **New endpoint**: Create service method in `src/services/`
-3. **New model**: Add to `src/models/schemas.py` or database
-4. **New config**: Add to `.env.template` with defaults
-
-## Deployment Considerations
-
-- **Database**: SQLite for dev, PostgreSQL for production
-- **Caching**: Consider Redis for high-frequency updates
-- **Rate limiting**: Respect TopDeck API rate limits
-- **Webhooks**: Use `webhook_url` in @BotFather instead of polling
-- **SSL**: Always use HTTPS for webhook endpoints
-
-## Monitoring & Logging
-
-Logs are written to:
-- Console (default)
-- File (if `LOG_FILE` configured)
-
-Log levels: DEBUG, INFO, WARNING, ERROR
-
-Key metrics to track:
-- API call success rate
-- Notification delivery time
-- Tournament completion latency
-- User command frequency
-
-## Security Considerations
-
-- Bot token never logged or committed
-- Environment variables for secrets
-- Rate limiting on API calls
-- Input validation on all commands
-- Group ID whitelist for notifications
+See the [user guide](user-guide.md) for commands and
+[development guide](development-guide.md) for test and deployment commands.

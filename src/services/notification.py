@@ -187,11 +187,17 @@ class NotificationService:
             InlineKeyboardMarkup or None
         """
         if priority == "high":
-            keyboard = types.InlineKeyboardMarkup(row_width=1)
-            keyboard.add(types.InlineKeyboardButton(
-                text="🚨 High Priority",
-                callback_data="reaction:high"
-            ))
+            # In aiogram 3.x, InlineKeyboardMarkup takes an inline_keyboard list of lists
+            keyboard = types.InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        types.InlineKeyboardButton(
+                            text="🚨 High Priority",
+                            callback_data="reaction:high"
+                        )
+                    ]
+                ]
+            )
             return keyboard
     
     async def stop_notifications(self, group_id: str) -> bool:

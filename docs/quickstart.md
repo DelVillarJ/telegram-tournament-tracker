@@ -1,97 +1,59 @@
-# Quick Start Guide
+# Quick start
 
-This guide helps you get the Telegram bot running in 5 minutes.
+## Requirements
 
-## Prerequisites Checklist
+- Python 3.11 or newer.
+- A Telegram bot token from [@BotFather](https://t.me/BotFather).
+- A TopDeck API key.
 
-- [ ] Python 3.10+ installed (`python --version`)
-- [ ] pip available
-- [ ] Telegram account created
+## Install and configure
 
-## Step 1: Get Bot Token
+Run these commands from the repository root in PowerShell:
 
-1. Open Telegram and search for `@BotFather`
-2. Send `/newbot` command
-3. Follow instructions to create bot
-4. Copy the token provided
-
-## Step 2: Setup Environment
-
-```bash
-# Create .env file from template
-cp .env.template .env
-
-# Edit .env with your values
-nano .env  # or use your preferred editor
-
-# Add these lines (replace placeholders):
-BOT_TOKEN=your_bot_token_here
-TOPDECK_API_KEY=your_api_key_here
-TELEGRAM_GROUP_IDS=id1,id2,id3  # Your group IDs
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-## Step 3: Install Dependencies
+Edit `.env` and set the required values:
 
-```bash
-pip install -r requirements.txt
+```dotenv
+BOT_TOKEN=your_telegram_bot_token
+TOPDECK_API_KEY=your_topdeck_api_key
+TOPDECK_API_URL=https://topdeck.gg/api
 ```
 
-## Step 4: Initialize Database
+## Initialize and run
 
-```bash
+```powershell
 python migrations/init.py
+python -m src.main
 ```
 
-Expected output:
-```
-Initializing database...
-Database tables created successfully
-✅ Database initialized!
-```
+Open the bot in Telegram, send `/start`, then try `/status` or `/points`.
+`/points` reads the 2026 standings from the configured SQLite database. See
+the [user guide](user-guide.md) for scoring and the admin bonus command.
 
-## Step 5: Run the Bot
+## Docker
 
-```bash
-python src/main.py
-```
+After setting the required values in `.env`:
 
-Expected output:
-```
-Bot started!
-Bot token: abc123...
-Debug mode: False
+```powershell
+docker compose --env-file .env up --detach --build
+docker compose logs --follow telegram-bot
 ```
 
-## Test the Bot
+To apply changed environment values to an existing container:
 
-1. Open Telegram and start your bot (username: `your_botname`)
-2. Send `/start` command
-3. Try other commands (`/status`, `/points`, `/help`)
+```powershell
+docker compose --env-file .env up --detach --build --force-recreate
+```
 
-## Troubleshooting
+The database is stored in `data/tournaments.db` on the host and mounted into the
+container. The bot uses Telegram long polling; it does not expose an HTTP health
+endpoint.
 
-### "No module named 'xxx'" error
-
-Run: `pip install -r requirements.txt` again
-
-### Database errors
-
-Check if migrations ran: `python migrations/init.py`
-
-### Bot not responding
-
-1. Check token is correct in `.env`
-2. Ensure bot isn't banned (check @BotFather)
-3. Try restarting the bot
-
-## Next Steps
-
-- Customize notification settings in `.env`
-- Review `/docs/user-guide.md` for full command list
-- See `/docs/development-guide.md` for development tips
-
-## Need Help?
-
-- Check existing issues on GitHub
-- Review logs in `logs/` directory
-- Enable debug mode: set `DEBUG=true` in `.env`
+On macOS/Linux, activate with `source .venv/bin/activate` and copy the template
+with `cp .env.example .env`.

@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
+from sqlalchemy import text
 
+from src.config import config as settings
 from src.models.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -10,36 +12,34 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Initialize database and create tables."""
-    
-    # Use SQLite by default (can be configured in .env)
-    db_url = "sqlite:///./telegram_bot.db"
-    
+
     print("Initializing database...")
-    
-    db_manager = DatabaseManager(url=db_url, echo=True)
-    
+    settings.ensure_db_directory()
+    db_manager = DatabaseManager(
+        url=settings.get_database_url(),
+        echo=settings.debug,
+    )
+
     try:
-        asyncio.run(db_manager.create_all())
         asyncio.run(db_manager.run_migrations())
-        
-        # Verify tables were created
+
         with db_manager.engine.connect() as conn:
             result = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
+                text("SELECT name FROM sqlite_master WHERE type='table'")
             )
             tables = [row[0] for row in result.fetchall()]
             
-            print(f"\n✅ Database initialized!")
-            print(f"   Tables created: {', '.join(tables)}")
-        
+            print("\nDatabase initialized.")
+            print(f"Tables created: {', '.join(tables)}")
+
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise
-    
+
     finally:
         db_manager.close()
-    
-    print("   Database ready to use.")
+
+    print("Database ready to use.")
 
 
 if __name__ == "__main__":

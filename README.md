@@ -1,252 +1,156 @@
-# Telegram Bot - TopDeck Tournament Tracker
-A Python-based Telegram bot that integrates with the TopDeck API to track tournaments, notify when they finish, and update points standings for your group.
+# TopDeck Tournament Tracker
+
+Telegram bot for TopDeck tournament status and the 2026 Poyo League leaderboard.
+The running application uses `aiogram`, the TopDeck Tournaments V2 API, and a
+SQLite database.
 
 ## Features
 
-- 🤖 **Telegram Integration**: Full bot functionality using python-telegram-bot
-- 🏆 **Tournament Tracking**: Monitor all tournaments hosted by specific users on TopDeck
-- 🔔 **Notifications**: Automatic notifications when tournaments complete
-- 📊 **Points System**: Track and update standings (logic will be implemented later)
-- 💾 **Local Persistence**: SQLite database for storing tournament data
-- ⚙️ **Flexible Configuration**: Environment-based configuration with secure secret handling
-- 🐳 **Docker Ready**: Optional containerization support
+- `/status` lists tournaments from the TopDeck account connected by API key.
+- `/points` shows every player in the 2026 league standings.
+- Monthly events (8 or more players) score the monthly table and award +1
+  additional point to each player with no losses in non-bracket rounds. Draws
+  do not count as losses; bracket results are ignored.
+- Weekly events (7 or fewer players) score the weekly table.
+- `/bonus` appends a signed manual point adjustment (positive or negative) to a
+  player's league total. Adjustments are persisted with the acting Telegram
+  account and timestamp.
+- `/admin add` and `/admin remove` manage the persistent bot-admin list.
+- `/setdefaultchannel` sets the group for automatically linked TopDeck events.
+- Signed TopDeck `tournament.finished` webhooks update tournament results and
+  trigger a third-place confirmation in the assigned Telegram destination.
+- SQLite persistence for tournaments, player standings, bonus adjustments, and
+  notifications.
 
-## Project Structure
+## Requirements
 
-```
-telegrambot/
-├── README.md                    # This file
-├── DEVELOPMENT_GUIDE.md         # Detailed setup and development guide
-├── CODE_FLOW_DIAGRAM.mmd        # Mermaid diagram of bot architecture
-├── .env.example                  # Environment variable template
-├── .gitignore                    # Git ignore rules
-│
-├── src/
-│   ├── __init__.py
-│   ├── config.py                # Configuration loader
-│   ├── database.py              # Database schema and queries
-│   ├── bot.py                   # Main bot initialization and commands
-│   ├── topdeck_api.py           # TopDeck API integration
-│   ├── tournament_tracker.py    # Tournament detection and tracking
-│   ├── points.py                # Point system logic (TODO)
-│   │
-│   └── utils/
-│       ├── __init__.py
-│       ├── logging.py           # Logging configuration
-│       └── validators.py        # Input validation helpers
-│
-└── tests/
-    ├── __init__.py
-    ├── test_tournament_tracker.py
-    ├── test_points.py
-    └── test_database.py
+- Python 3.10 or newer (the Docker image uses Python 3.11).
+- A Telegram bot token from [@BotFather](https://t.me/BotFather).
+- A TopDeck API key with access to your tournaments.
+
+## Local setup
+
+From the repository root, in PowerShell:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-## Setup Instructions
+Set `BOT_TOKEN` and `TOPDECK_API_KEY` in `.env`. Then initialize the configured
+database and start the bot:
 
-### Prerequisites
+```powershell
+python migrations/init.py
+python -m src.main
+```
 
-- Python 3.11+
-- pip or poetry for package management
-- Telegram Bot Token (from @BotFather)
-- TopDeck API credentials
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd telegrambot
-   ```
-
-2. **Create virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Linux/Mac
-   # or
-   venv\Scripts\activate     # On Windows
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables**
-   Copy `.env.example` to `.env` and fill in your credentials:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your values
-   ```
-
-5. **Run the bot**
-   ```bash
-   python src/bot.py
-   ```
+On macOS/Linux, activate the environment with `source .venv/bin/activate` and
+copy the template with `cp .env.example .env`.
 
 ## Configuration
 
-Edit the `.env` file with your credentials:
+| Variable | Purpose |
+|---|---|
+| `BOT_TOKEN` | Telegram bot token (required). |
+| `TOPDECK_API_KEY` | TopDeck API key (required). |
+| `TOPDECK_API_URL` | API base URL; defaults to `https://topdeck.gg/api`. |
+| `TOPDECK_WEBHOOK_SECRET` | TopDeck endpoint's `whsec_...` signing secret; enables the webhook receiver. |
+| `TOPDECK_DEFAULT_CHAT_ID` | Default Telegram destination for tournaments without a per-tournament assignment; defaults to `-1004340474920`. |
+| `WEBHOOK_HOST` / `WEBHOOK_PORT` | HTTP listener bind address and port (defaults to `0.0.0.0:8080`). |
+| `WEBHOOK_BIND_ADDRESS` | Docker host bind address (defaults to `0.0.0.0`, so a reverse proxy on another LAN guest can reach it). |
+| `DATABASE_PATH` | SQLite path; defaults to `data/tournaments.db`. |
+| `BONUS_ADMIN_IDS` | Comma-separated Telegram user IDs bootstrapped as admins on first startup. |
+| `BONUS_ADMIN_USERNAMES` | Comma-separated Telegram usernames bootstrapped as admins on first startup; `poyotcg` is included by default. |
+| `DEBUG` | Enables debug logging when set to `true`. |
 
-```bash
-# Telegram Bot Configuration
-BOT_TOKEN=your_bot_token_from_btfather
+The Docker Compose service reads `.env` and mounts `./data` at `/app/data`.
+Changing environment variables for a running container requires recreating it:
 
-# TopDeck API Configuration  
-TOPDECK_API_URL=https://api.topdeck.com
-TOPDECK_CLIENT_ID=your_client_id
-TOPDECK_CLIENT_SECRET=your_client_secret
-TOPDECK_REDIRECT_URI=http://localhost:8000/callback
-
-# Tournament Tracking Configuration
-TARGET_USER_ID=user_id_to_track  # User whose tournaments to track
-TOPDECK_POLL_INTERVAL=60         # Seconds between API polling
-
-# Bot Behavior
-NOTIFY_ON_COMPLETE=true
-AUTO_UPDATE_STANDINGS=true
+```powershell
+docker compose --env-file .env up --detach --build --force-recreate
 ```
 
-## Running the Bot
-
-### Local Development
-
-```bash
-python src/bot.py
-```
-
-The bot will:
-- Listen for Telegram commands and messages
-- Poll TopDeck API for new tournament data
-- Detect completed tournaments
-- Notify your group and update standings
-
-### Using Process Manager (Optional)
-
-```bash
-# Install supervisor or systemd for production
-supervisord -c supervisor.conf
-```
-
-## Available Commands
+## Bot commands
 
 | Command | Description |
-|---------|-------------|
-| `/start` | Initialize the bot and show help |
-| `/status` | Show current tournament status |
-| `/standings` | Display points standings |
-| `/tournaments` | List all tracked tournaments |
-| `/add-tournament <tournament_id>` | Manually add a tournament |
-| `/remove-tournament <tournament_id>` | Remove from tracking |
-| `/help` | Show command list |
+|---|---|
+| `/start` | Welcome message and command overview. |
+| `/status` | List tournaments returned by the configured TopDeck account. |
+| `/points` | Show the complete 2026 Poyo League standings. |
+| `/bonus <signed points> <player name or TopDeck ID>` | Admin-only cumulative point adjustment. |
+| `/admin <add|remove> <@username or Telegram user ID>` | Add or remove a bot admin; admin-only. |
+| `/setdefaultchannel` | Set this group as the default results destination for new events; admin-only. |
+| `/assignchannel <TopDeck tournament ID> [chat ID or @channel]` | Assign a results destination; admin-only. |
+| `/help` | Show available commands. |
 
-## Code Flow Explanation
+Example adjustments:
 
-1. **Initialization**: Bot loads configuration, connects to Telegram and TopDeck API
-2. **Command Handlers**: Telegram commands trigger appropriate handlers
-3. **Background Polling**: Periodic checks of TopDeck API for tournament updates
-4. **Completion Detection**: Tournament status changes trigger notifications
-5. **Points Update**: (TODO) Logic calculates points and updates database
-
-See [CODE_FLOW_DIAGRAM.mmd](/c:/Users/jdelv/Documents/python/telegrambot/CODE_FLOW_DIAGRAM.mmd) for detailed architecture.
-
-## Point System (TODO)
-
-The point system logic will be implemented in `src/points.py`. Currently, this file contains placeholder functions:
-
-```python
-def calculate_tournament_points(tournament, team):
-    """Calculate points earned by a team in a tournament."""
-    # TODO: Implement point logic here
-    pass
-
-def update_standings(tournament_result):
-    """Update standings based on tournament results."""
-    # TODO: Implement standings update logic
-    pass
+```text
+/bonus +5 Angel Fuentes
+/bonus -3 Angel Fuentes
 ```
 
-## Database Schema
+Use `/admin add @username` or `/admin add <Telegram user ID>` to grant admin
+access; use `/admin remove` with the same target format to revoke it. These
+changes are stored in SQLite and take effect immediately. The configured admins
+and `@poyotcg` are used to seed the list when it is first created. The last
+remaining admin cannot be removed. The `/bonus` target must match one 2026
+league player by exact name (case-insensitive) or TopDeck player ID.
 
-### Tournaments Table
-```sql
-CREATE TABLE tournaments (
-    id INTEGER PRIMARY KEY,
-    topdeck_tournament_id TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    category TEXT,
-    start_date TIMESTAMP,
-    end_date TIMESTAMP,
-    status TEXT,  -- ongoing, completed, cancelled
-    host_user_id TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+## TopDeck webhook results
+
+1. Ensure the bot is a member of the destination Telegram group and can send
+   messages. `TOPDECK_DEFAULT_CHAT_ID` defaults to the configured league group,
+   so all tournament results use it automatically, including pending
+   completion events. It takes precedence over stored per-tournament
+   assignments. To route to another destination, change this setting.
+2. In TopDeck's [developer portal](https://topdeck.gg/developers), register an
+   HTTPS endpoint at `https://<your-public-host>/webhooks/topdeck` and subscribe
+   to both `tournament.checkin_started` and `tournament.finished`. TopDeck
+   documents `tournament.checkin_started` (not `tournament.started`) as the
+   event that fires when check-in opens. Copy the endpoint's `whsec_...`
+   signing secret into `TOPDECK_WEBHOOK_SECRET` in `.env`.
+3. Route public HTTPS through your TLS reverse proxy to the bot VM's LAN address
+   on port 8080 (`WEBHOOK_BIND_ADDRESS=0.0.0.0` by default), then recreate the
+   service. Do not forward the bot VM's webhook port directly from the router;
+   public traffic should terminate at the TLS reverse proxy.
+   The listener also exposes `/health` for local health checks.
+
+The receiver verifies TopDeck's HMAC signature against the raw request body,
+stores event IDs durably to deduplicate retries, and processes events in the
+background. If a tournament has no explicit destination, its result handling
+assigns the configured default Telegram group and persists that association.
+When a tournament finishes, it fetches current rounds from TopDeck,
+stores standings in SQLite, and posts a third-place confirmation keyboard. A
+bot admin's selection updates third/fourth places and league points, then posts
+the final standings to the assigned destination.
+
+TopDeck requires a publicly resolvable HTTPS endpoint. A homelab-only deployment
+is not reachable until a public domain and HTTPS ingress (for example a TLS
+reverse proxy with a tunnel or router forwarding) are configured. Keep the
+webhook signing secret private; do not commit it.
+
+## Tests
+
+Install the project dependencies, then run:
+
+```powershell
+python -m pytest
 ```
 
-### Players Table
-```sql
-CREATE TABLE players (
-    id INTEGER PRIMARY KEY,
-    telegram_chat_id INTEGER NOT NULL,
-    tournament_id INTEGER REFERENCES tournaments(id),
-    player_name TEXT NOT NULL,
-    team TEXT,
-    rank INTEGER,
-    points INTEGER DEFAULT 0,
-    UNIQUE(telegram_chat_id, tournament_id)
-);
-```
+## Project layout
 
-### Standings Table
-```sql
-CREATE TABLE standings (
-    id INTEGER PRIMARY KEY,
-    tournament_id INTEGER REFERENCES tournaments(id),
-    position INTEGER NOT NULL,
-    team_name TEXT NOT NULL,
-    points INTEGER DEFAULT 0,
-    games_played INTEGER DEFAULT 0,
-    wins INTEGER DEFAULT 0,
-    losses INTEGER DEFAULT 0,
-    draws INTEGER DEFAULT 0,
-    goal_for INTEGER DEFAULT 0,
-    goal_against INTEGER DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+- `src/handlers/` — Telegram commands and routing.
+- `src/services/` — TopDeck integration, leaderboard, and scoring logic.
+- `src/models/` — SQLAlchemy database models and schema initialization.
+- `src/topdeck/` — TopDeck Tournaments V2 API client.
+- `migrations/` — Database initialization entrypoint.
+- `tests/` — Unit and integration tests.
+- `docs/` — Quick start, user, development, and architecture guides.
 
-## Future Roadmap
-
-- [ ] **Admin Commands**: Add admin-only commands for managing tracked tournaments
-- [ ] **Caching**: Implement Redis/SQLite caching for API responses
-- [ ] **Webhook Support**: Replace polling with TopDeck webhooks when available
-- [ ] **Advanced Analytics**: Tournament history, team performance tracking
-- [ ] **Custom Point Systems**: Allow configuration of point rules per tournament type
-- [ ] **Multi-team Support**: Track multiple teams across different Telegram chats
-- [ ] **Web Dashboard**: Optional web interface for viewing standings
-- [ ] **Export Data**: Export standings to CSV/Excel formats
-
-## Troubleshooting
-
-### Bot doesn't respond
-- Verify BOT_TOKEN is correct in `.env`
-- Check internet connection
-- Review logs in the terminal where bot is running
-
-### API errors
-- Verify TopDeck credentials
-- Check that API endpoint is accessible
-- Review error messages in logs
-
-### Database issues
-- Ensure SQLite file has write permissions
-- Run database migration if schema changes
-
-## License
-
-This project is for internal use within your organization.
-
----
-
-**Need help?** Check the [DEVELOPMENT_GUIDE.md](/c:/Users/jdelv/Documents/python/telegrambot/DEVELOPMENT_GUIDE.md) for detailed setup instructions and troubleshooting tips.
+See [the quick start](docs/quickstart.md), [user guide](docs/user-guide.md),
+[development guide](docs/development-guide.md), and
+[architecture overview](docs/architecture.md).

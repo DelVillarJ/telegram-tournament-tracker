@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+# Virtual Environment
+venv/
+.venv/
+.venv-*/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables and local secrets
+.env*
+!.env.example
+.secrets/
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+*.pid
+*.seed
+*.pid.lock
+
+# Testing
+coverage.xml
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.jenkins/
+
+# Database
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+.db-shm
+*.db-journal
+*.sqlite-*
+poyo.session.sql
+
+# Local deployment artifacts
+telegrambot-deploy-*.zip
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Git
+.git/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+.cache/
+.ruff_cache/
+.mypy_cache/
+
+# Type stubs
+*.pyi
+
+# Migrations (if using Flask-Migrate or similar)
+alembic/
+.migration_repository/
+
+# Coverage reports
+*.cover
+*.html.cover
+htmlcov/*

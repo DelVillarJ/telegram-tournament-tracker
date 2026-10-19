@@ -12,20 +12,18 @@ import sqlite3
 def test_full_tournament_workflow():
     """
     Integration test: Full workflow from tournament creation to completion.
-    
-    Steps:
-    1. Create tournament in database
-    2. Simulate API poll detecting completion
-    3. Update standings (placeholder logic)
-    4. Verify notification would be sent
     """
     test_db = Path(__file__).parent.parent / 'data' / 'test.db'
+    # Ensure a clean database for this test
+    if test_db.exists():
+        test_db.unlink()
+
     conn = sqlite3.connect(str(test_db))
     cursor = conn.cursor()
     
-    # Setup: Create tables if they don't exist
+    # Setup: Create tables
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tournaments (
+        CREATE TABLE tournaments (
             id INTEGER PRIMARY KEY,
             topdeck_tournament_id TEXT UNIQUE,
             name TEXT,
@@ -38,7 +36,7 @@ def test_full_tournament_workflow():
     ''')
     
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS standings (
+        CREATE TABLE standings (
             id INTEGER PRIMARY KEY,
             tournament_id INTEGER,
             position INTEGER,
@@ -50,7 +48,7 @@ def test_full_tournament_workflow():
     ''')
     
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS history_archive (
+        CREATE TABLE history_archive (
             id INTEGER PRIMARY KEY,
             tournament_id INTEGER UNIQUE REFERENCES tournaments(id),
             completion_date TIMESTAMP,
@@ -60,7 +58,7 @@ def test_full_tournament_workflow():
     
     conn.commit()
     
-    # Step 1: Create tournament (simulating new tournament detected)
+    # Step 1: Create tournament
     cursor.execute('''
         INSERT INTO tournaments 
         (topdeck_tournament_id, name, category, status, host_user_id)
@@ -80,7 +78,7 @@ def test_full_tournament_workflow():
                    ('TD-2026-Spring',))
     assert len(cursor.fetchall()) == 1, "Tournament should be created"
     
-    # Step 2: Simulate completion (status changed to 'completed')
+    # Step 2: Simulate completion
     cursor.execute('''
         UPDATE tournaments SET status = 'completed'
         WHERE topdeck_tournament_id = 'TD-2026-Spring'
@@ -130,7 +128,9 @@ def test_full_tournament_workflow():
 
 def test_standings_updates():
     """Test that standings are correctly updated."""
-    test_db = Path(__file__).parent.parent / 'data' / 'test.db'
+    test_db = Path(__file__).parent.parent / 'data' / 'test_standings.db'
+    if test_db.exists():
+        test_db.unlink()
     conn = sqlite3.connect(str(test_db))
     cursor = conn.cursor()
     
@@ -139,17 +139,34 @@ def test_standings_updates():
         CREATE TABLE IF NOT EXISTS tournaments (
             id INTEGER PRIMARY KEY,
             topdeck_tournament_id TEXT UNIQUE,
-            name TEXT
+            name TEXT,
+            category TEXT,
+            status TEXT DEFAULT 'pending',
+            start_date TIMESTAMP,
+            end_date TIMESTAMP,
+            host_user_id TEXT
         )
     ''')
     
     cursor.execute(
-        "INSERT INTO tournaments VALUES (NULL, 'test_standings', 'Test Tournament')"
+        "INSERT INTO tournaments (topdeck_tournament_id, name) VALUES ('test_standings', 'Test Tournament')"
     )
     
     conn.commit()
     
     # Add initial standings
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS standings (
+            id INTEGER PRIMARY KEY,
+            tournament_id INTEGER,
+            position INTEGER,
+            team_name TEXT,
+            points INTEGER DEFAULT 0,
+            wins INTEGER DEFAULT 0,
+            losses INTEGER DEFAULT 0
+        )
+    ''')
+
     cursor.execute('''
         INSERT INTO standings (tournament_id, position, team_name, points)
         VALUES (?, ?, ?, ?)
@@ -180,7 +197,9 @@ def test_standings_updates():
 
 def test_tournament_removal():
     """Test removing a tournament from tracking."""
-    test_db = Path(__file__).parent.parent / 'data' / 'test.db'
+    test_db = Path(__file__).parent.parent / 'data' / 'test_removal.db'
+    if test_db.exists():
+        test_db.unlink()
     conn = sqlite3.connect(str(test_db))
     cursor = conn.cursor()
     
@@ -190,12 +209,16 @@ def test_tournament_removal():
             id INTEGER PRIMARY KEY,
             topdeck_tournament_id TEXT UNIQUE,
             name TEXT,
-            status TEXT DEFAULT 'ongoing'
+            category TEXT,
+            status TEXT DEFAULT 'pending',
+            start_date TIMESTAMP,
+            end_date TIMESTAMP,
+            host_user_id TEXT
         )
     ''')
     
     cursor.execute(
-        "INSERT INTO tournaments VALUES (NULL, 'test_remove', 'Test Tournament', 'ongoing')"
+        "INSERT INTO tournaments (topdeck_tournament_id, name, status) VALUES ('test_remove', 'Test Tournament', 'ongoing')"
     )
     
     conn.commit()

@@ -1,17 +1,14 @@
 # Docker Compose for Telegram Bot
-version: '3.8'
-
 services:
   telegram-bot:
     build: .
     container_name: telegrambot
+    env_file:
+      - .env
     environment:
-      - BOT_TOKEN=${BOT_TOKEN}
-      - TOPDECK_API_URL=${TOPDECK_API_URL}
-      - TOPDECK_CLIENT_ID=${TOPDECK_CLIENT_ID}
-      - TOPDECK_CLIENT_SECRET=${TOPDECK_CLIENT_SECRET}
-      - TARGET_USER_ID=${TARGET_USER_ID:-user_id_1}
       - DATABASE_PATH=/app/data/tournaments.db
+    ports:
+      - "${WEBHOOK_BIND_ADDRESS:-0.0.0.0}:${WEBHOOK_PORT:-8080}:${WEBHOOK_PORT:-8080}"
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

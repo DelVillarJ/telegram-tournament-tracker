@@ -4,8 +4,13 @@ Loads settings from .env file and environment variables using SQLite database.
 """
 
 import os
-from typing import Dict, List, Any
+from typing import List
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 
 class Config:
@@ -23,15 +28,36 @@ class Config:
         # TopDeck API configuration (using SQLite as specified)
         self.topdeck_api_url = os.getenv(
             'TOPDECK_API_URL', 
-            'https://api.topdeck.gg/v2'
+            'https://topdeck.gg/api'
         )
+        self.topdeck_api_key = os.getenv('TOPDECK_API_KEY', '')
         self.topdeck_client_id = os.getenv('TOPDECK_CLIENT_ID', '')
         self.topdeck_client_secret = os.getenv('TOPDECK_CLIENT_SECRET', '')
+        self.topdeck_webhook_secret = os.getenv('TOPDECK_WEBHOOK_SECRET', '')
+        self.topdeck_default_chat_id = os.getenv(
+            'TOPDECK_DEFAULT_CHAT_ID',
+            '-1004340474920',
+        )
+        self.webhook_host = os.getenv('WEBHOOK_HOST', '0.0.0.0')
+        self.webhook_port = int(os.getenv('WEBHOOK_PORT', '8080'))
+
+        bonus_admin_ids = os.getenv('BONUS_ADMIN_IDS', '')
+        self.bonus_admin_ids = {
+            user_id.strip()
+            for user_id in bonus_admin_ids.split(',')
+            if user_id.strip()
+        }
+        bonus_admin_usernames = os.getenv('BONUS_ADMIN_USERNAMES', '')
+        self.bonus_admin_usernames = {
+            username.strip().lstrip('@').casefold()
+            for username in bonus_admin_usernames.split(',')
+            if username.strip().lstrip('@')
+        } | {'poyotcg'}
         
         # Database configuration (SQLite only)
         self.db_path = os.getenv(
-            'DATABASE_PATH', 
-            Path(__file__).parent.parent / 'data' / 'tournaments.db'
+            'DATABASE_PATH',
+            str(Path(__file__).parent.parent / 'data' / 'tournaments.db'),
         )
         self.use_sqlite = os.getenv('DB_USE_SQLITE', 'true').lower() == 'true'
         
