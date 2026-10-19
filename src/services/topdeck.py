@@ -1,6 +1,7 @@
 """TopDeck API integration service."""
 
 import asyncio
+import math
 import requests
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -35,12 +36,20 @@ class TopDeckService:
         }
     
     async def get_active_tournaments(self) -> List[Dict[str, Any]]:
-        """Get all active tournaments from TopDeck.
+        """Get all account tournaments, newest start date first.
         
         Returns:
             List of tournaments belonging to the authenticated TopDeck account.
         """
-        return await asyncio.to_thread(self.api_client.get_my_tournaments)
+        tournaments = await asyncio.to_thread(self.api_client.get_my_tournaments)
+
+        def start_timestamp(tournament: Dict[str, Any]) -> float:
+            value = tournament.get("startDate")
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return float("-inf")
+            return float(value) if math.isfinite(value) else float("-inf")
+
+        return sorted(tournaments, key=start_timestamp, reverse=True)
     
     def get_tournament_details(self, tournament_id: str) -> Optional[Dict[str, Any]]:
         """Get details for a specific tournament.

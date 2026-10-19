@@ -56,8 +56,12 @@ class TestHandlers:
     async def test_start_command(self, mock_message):
         """Test /start command handler."""
         await start_command(mock_message)
-        
-        mock_message.answer.assert_called_once()
+
+        mock_message.answer.assert_awaited_once()
+        text = mock_message.answer.await_args.args[0]
+        assert "/start - Initialize the bot and show commands" in text
+        assert "/notify" not in text
+        assert "parse_mode" not in mock_message.answer.await_args.kwargs
     
     @pytest.mark.asyncio
     async def test_status_command_success(self, mock_message, mock_topdeck_service):
@@ -65,7 +69,7 @@ class TestHandlers:
         # No need to patch src.handlers.topdeck_service if we pass it as an argument
         await status_command(mock_message, mock_topdeck_service)
 
-        mock_message.answer.assert_called_once()
+        mock_message.answer.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_status_command_no_tournaments(self, mock_message, mock_topdeck_service):
@@ -74,7 +78,7 @@ class TestHandlers:
 
         await status_command(mock_message, mock_topdeck_service)
 
-        mock_message.answer.assert_called_once()
+        mock_message.answer.assert_awaited_once()
     
     @pytest.mark.asyncio
     async def test_points_command_success(self, mock_message, mock_topdeck_service):
@@ -95,6 +99,20 @@ class TestHandlers:
         response = mock_message.answer.call_args.args[0]
         assert "2026 Poyo League Standings" in response
         assert "Player12" in response
+
+    @pytest.mark.asyncio
+    async def test_status_command_sends_untrusted_names_as_plain_text(
+        self, mock_message, mock_topdeck_service
+    ):
+        mock_topdeck_service.get_active_tournaments.return_value = [
+            {"name": "<b>Unsafe & Cup</b>", "participant_count": 8}
+        ]
+
+        await status_command(mock_message, mock_topdeck_service)
+
+        text = mock_message.answer.await_args.args[0]
+        assert "<b>Unsafe & Cup</b>" in text
+        assert "parse_mode" not in mock_message.answer.await_args.kwargs
 
     @pytest.mark.asyncio
     async def test_bonus_command_requires_allowlisted_user(
@@ -161,10 +179,16 @@ class TestHandlers:
         """Test /help command."""
         await help_command(mock_message)
         
-        # Check that response contains help text
-        response = mock_message.answer.call_args[0][0]
+        mock_message.answer.assert_awaited_once()
+        response = mock_message.answer.await_args.args[0]
         assert "/start" in response
         assert "/status" in response
+        assert "/points" in response
+        assert "/bonus <signed points>" in response
+        assert "/assignchannel <TopDeck tournament ID>" in response
+        assert "/setdefaultchannel" in response
+        assert "/notify" not in response
+        assert "parse_mode" not in mock_message.answer.await_args.kwargs
     
     @pytest.mark.asyncio
     async def test_callback_handler(self):

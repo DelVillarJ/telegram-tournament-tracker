@@ -15,6 +15,19 @@ from src.services.topdeck_webhook import TopDeckWebhookService
 router = Router()
 logger = logging.getLogger(__name__)
 
+_COMMANDS_TEXT = (
+    "Available commands:\n"
+    "/start - Initialize the bot and show commands\n"
+    "/status - Show current tournament status\n"
+    "/points - Display points standings\n"
+    "/bonus <signed points> <player name or TopDeck ID> - Adjust league points\n"
+    "/admin <add|remove> <@username or Telegram user ID> - Manage admins\n"
+    "/setdefaultchannel - Set this group as the default results destination\n"
+    "/assignchannel <TopDeck tournament ID> [chat ID or @channel] - Set result destination\n"
+    "/help - Show this help message"
+)
+
+
 async def setup_handlers(
     dp: Dispatcher,
     topdeck_service: TopDeckService,
@@ -56,14 +69,7 @@ async def start_command(message: types.Message) -> None:
         "• Track tournament status\n"
         "• Check points standings\n"
         "• Get notifications when tournaments finish\n\n"
-        "Available commands:\n"
-        "/status - Show current tournament status\n"
-        "/points - Display points standings\n"
-        "/setdefaultchannel - Set this group as the default results destination\n"
-        "/admin <add|remove> <@username or Telegram user ID> - Manage admins\n"
-        "/notify &lt;group_id&gt; - Set notification group\n"
-        "/help - Show this help message",
-        parse_mode="HTML"
+        f"{_COMMANDS_TEXT}",
     )
 
 
@@ -86,12 +92,11 @@ async def status_command(message: types.Message, topdeck_service: TopDeckService
         if len(tournaments) > 5:
             response_text += f"... and {len(tournaments) - 5} more tournaments"
         
-        await message.answer(response_text, parse_mode="HTML")
+        await message.answer(response_text)
         
     except Exception as e:
         await message.answer(
-            f"❌ Error fetching tournament status:\n{str(e)}",
-            parse_mode="HTML"
+            f"❌ Error fetching tournament status:\n{e}",
         )
 
 
@@ -117,12 +122,11 @@ async def points_command(message: types.Message, topdeck_service: TopDeckService
             response_text += " "
             response_text += f"({player.get('events_played', 0)} events)\n"
         
-        await message.answer(response_text, parse_mode="HTML")
+        await message.answer(response_text)
         
     except Exception as e:
         await message.answer(
-            f"❌ Error fetching standings:\n{str(e)}",
-            parse_mode="HTML"
+            f"❌ Error fetching standings:\n{e}",
         )
 
 
@@ -180,7 +184,6 @@ async def bonus_command(
     except Exception as error:
         await message.answer(
             f"❌ Error adjusting league points:\n{error}",
-            parse_mode="HTML",
         )
 
 
@@ -418,19 +421,10 @@ async def third_place_callback(
 @router.message(Command("help"))
 async def help_command(message: types.Message) -> None:
     """Handle /help command."""
-    help_text = "🤖 TopDeck Tournament Bot Commands:\n\n"
-    help_text += "/start - Initialize bot and get help\n"
-    help_text += "/status - Show current tournament status\n"
-    help_text += "/points - Display points standings\n"
-    help_text += "/bonus <signed points> <player name or TopDeck ID> - Admin point adjustment\n"
-    help_text += "/admin <add|remove> <@username or Telegram user ID> - Manage admins\n"
-    help_text += "/setdefaultchannel - Set this group as the default results destination\n"
-    help_text += "/assignchannel <TopDeck tournament ID> [chat ID or @channel] - Set result destination\n"
-    help_text += "/notify &lt;group_id&gt; - Set notification group\n"
-    help_text += "/help - Show this help message\n\n"
-    help_text += "Need support? Contact @bot_support"
-    
-    await message.answer(help_text, parse_mode="HTML")
+    await message.answer(
+        f"🤖 TopDeck Tournament Bot Commands:\n\n{_COMMANDS_TEXT}\n\n"
+        "Need support? Contact @bot_support"
+    )
 
 
 @router.callback_query(F.data.startswith("tourney_"))
@@ -450,11 +444,9 @@ async def tournament_callback(callback: types.CallbackQuery) -> None:
             await callback.message.edit_text(
                 f"📊 {response['name']}\n\n"
                 f"Status: {response.get('status', 'Unknown')}\n"
-                f"Participants: {response.get('participant_count', 'N/A')}",
-                parse_mode="HTML"
+                f"Participants: {response.get('participant_count', 'N/A')}"
             )
     except Exception as e:
         await callback.message.edit_text(
-            f"❌ Error: {str(e)}",
-            parse_mode="HTML"
+            f"❌ Error: {e}"
         )

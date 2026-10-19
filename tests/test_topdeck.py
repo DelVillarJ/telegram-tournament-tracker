@@ -22,6 +22,22 @@ def topdeck_service():
 
 class TestTopDeckService:
     """Test cases for TopDeckService class."""
+
+    @pytest.mark.asyncio
+    async def test_get_active_tournaments_sorts_newest_first(self, topdeck_service):
+        topdeck_service.api_client.get_my_tournaments = MagicMock(return_value=[
+            {"tid": "old", "name": "Old Event", "startDate": 100},
+            {"tid": "newest", "name": "Newest Event", "startDate": 300},
+            {"tid": "middle", "name": "Middle Event", "startDate": 200},
+        ])
+
+        tournaments = await topdeck_service.get_active_tournaments()
+
+        assert [tournament["tid"] for tournament in tournaments] == [
+            "newest",
+            "middle",
+            "old",
+        ]
     
     def test_get_active_tournaments_success(self, topdeck_service):
         """Test fetching active tournaments on success."""
